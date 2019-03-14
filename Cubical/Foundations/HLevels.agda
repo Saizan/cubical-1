@@ -41,10 +41,23 @@ isProp→isSet h a b p q j i =
   hcomp (λ k → λ { (i = i0) → h a a k
                  ; (i = i1) → h a b k
                  ; (j = i0) → h a (p i) k
-                 ; (j = i1) → h a (q i) k }) a 
+                 ; (j = i1) → h a (q i) k }) a
 
 inhProp→isContr : ∀ {ℓ} {A : Set ℓ} → A → isProp A → isContr A
 inhProp→isContr x h = x , h x
+
+isContrPartial→isContr : ∀ {ℓ} {A : Set ℓ}
+                       → (extend : ∀ φ → Partial φ A → A)
+                       → (∀ u → u ≡ (extend i1 λ { _ → u}))
+                       → isContr A
+isContrPartial→isContr {A = A} extend law
+  = x , λ y → law x ∙ (λ i → Aux.v y i) ∙ sym (law y)
+    where x = extend i0 empty
+          module Aux (y : A) (i : I) where
+            φ = ~ i ∨ i
+            u : Partial φ A
+            u = λ { (i = i0) → x ; (i = i1) → y }
+            v = extend φ u
 
 isPropIsContr : ∀ {ℓ} {A : Set ℓ} → isProp (isContr A)
 isPropIsContr z0 z1 j =

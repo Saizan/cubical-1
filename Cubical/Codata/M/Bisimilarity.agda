@@ -3,6 +3,8 @@ module Cubical.Codata.M.Bisimilarity where
 
 open import Cubical.Core.Everything
 open import Cubical.Codata.M
+open import Cubical.Foundations.Equiv.Fiberwise
+open import Cubical.Foundations.Everything
 open Helpers using (J')
 
 -- Bisimilarity as a coinductive record type.
@@ -25,7 +27,7 @@ module _ {X : Set} {C : IxCont X} where
   --
   -- A direct construction of an isomorphism, like we do for streams,
   -- would be complicated by the type dependencies between the fields
-  -- of `M C x` and the bisimilarity relation itself.
+  -- of `M C x` and even more so between the fields of the bisimilarity relation itself.
   --
   -- Instead we rely on theorem 4.7.7 of the HoTT book (fiberwise equivalences) to show that `misib` is an equivalence.
 
@@ -40,105 +42,106 @@ module _ {X : Set} {C : IxCont X} where
   -- equivalence because it is a map of contractible types.
   --
   -- The domain is the HoTT singleton type, so contractible, while the
-  -- codomain is shown to be so by `contr-T` below.
+  -- codomain is shown to be contractible by `contr-T` below.
 
   T : ∀ {x} → M C x → Set _
   T a = Σ (M C _) \ b → a ≈ b
 
-
-  abstract
+  private
     lemma : ∀ {A} (B : Set) (P : A ≡ B) (pa : P i0) (pb : P i1) (peq : PathP (\ i → P i) pa pb)
           → PathP (\ i → PathP (\ j → P j) (transp (\ k → P (~ k ∧ i)) (~ i) (peq i)) pb)
                   peq
                   (\ j → transp (\ k → P (~ k ∨ j)) j pb)
     lemma {A} = J' _ \ pa → J' _ \ { i j → transp (\ _ → A) (~ i ∨ j) pa }
 
+
+
+  -- We predefine `u'` so that Agda will agree that `contr-T-fst` is productive.
+  private
+    module Tails x a φ (u : Partial φ (T {x} a)) y (p : C .snd x (hcomp (λ i .o → u o .snd .head≈ i) (a .head)) y) where
+      q = transp (\ i → C .snd x (hfill (\ i o → u o .snd .head≈ i) (inc (a .head)) (~ i)) y) i0 p
+      a' = a .tails y q
+      u' : Partial φ (T a')
+      u' (φ = i1) = u 1=1 .fst .tails y p
+                  , u 1=1 .snd .tails≈ y q p \ j → transp (\ i → C .snd x (u 1=1 .snd .head≈ (~ i ∨ j)) y) j p
+
+
+  contr-T-fst : ∀ x a φ → Partial φ (T {x} a) → M C x
+  contr-T-fst x a φ u .head      = hcomp (\ i o → u o .snd .head≈ i) (a .head)
+  contr-T-fst x a φ u .tails y p = contr-T-fst y a' φ u'
+    where
+      open Tails x a φ u y p
+
+  -- `contr-T-snd` is productive as the corecursive call appears as
+  -- the main argument of transport, which is guardedness-preserving.
   {-# TERMINATING #-}
-  contr-T : ∀ x a φ → Partial φ (T {x} a) → T a
-  contr-T x a φ u .fst .head = hcomp (\ { i (φ = i1) → u 1=1 .snd .head≈ i}) (a .head)
-  contr-T x a φ u .fst .tails y p =
-    let q = (transp (\ i → C .snd x (hfill (\ { i (φ = i1) → u 1=1 .snd .head≈ i}) (inc (a .head)) (~ i)) y) i0 p) in
-    contr-T y (a .tails y q) φ (\ { (φ = i1) → (u 1=1 .fst .tails y p)
-                      , (u 1=1 .snd .tails≈ y q p \ j → transp (\ i → C .snd x (u 1=1 .snd .head≈ (~ i ∨ j)) y) j p) }) .fst
-  contr-T x a φ u .snd .head≈ i = hfill (λ { i (φ = i1) → u 1=1 .snd .head≈ i }) (inc (a .head)) i
-  contr-T x a φ u .snd .tails≈ y pa pb peq =
-    let r = contr-T y (a .tails y pa) φ (\ { (φ = i1) → u 1=1 .fst .tails y pb , u 1=1 .snd .tails≈ y pa pb peq }) .snd in
+  contr-T-snd : ∀ x a φ → (u : Partial φ (T {x} a)) → a ≈ contr-T-fst x a φ u
+  contr-T-snd x a φ u .head≈ i = hfill (λ { i (φ = i1) → u 1=1 .snd .head≈ i }) (inc (a .head)) i
+  contr-T-snd x a φ u .tails≈ y pa pb peq =
+    let r = contr-T-snd y (a .tails y pa) φ (\ { (φ = i1) → u 1=1 .fst .tails y pb , u 1=1 .snd .tails≈ y pa pb peq }) in
       transport (\ i → a .tails y pa
-                ≈ contr-T y (a .tails y (sym (fromPathP (\ i → peq (~ i))) i)) φ
+                ≈ contr-T-fst y (a .tails y (sym (fromPathP (\ i → peq (~ i))) i)) φ
                   (\ { (φ = i1) → u 1=1 .fst .tails y pb , u 1=1 .snd .tails≈ y
                                   ((fromPathP (\ i → peq (~ i))) (~ i)) pb
-                                  \ j → lemma _ (λ h → C .snd x (u _ .snd .head≈ h) y) pa pb peq i j }) .fst) r
+                                  \ j → lemma _ (λ h → C .snd x (u _ .snd .head≈ h) y) pa pb peq i j })) r
 
-  {-# TERMINATING #-}
+  contr-T : ∀ x a φ → Partial φ (T {x} a) → T a
+  contr-T x a φ u .fst = contr-T-fst x a φ u
+  contr-T x a φ u .snd = contr-T-snd x a φ u
+
+
   contr-T-φ-fst : ∀ x a → (u : Partial i1 (T {x} a)) → contr-T x a i1 u .fst ≡ u 1=1 .fst
   contr-T-φ-fst x a u i .head = u 1=1 .fst .head
   contr-T-φ-fst x a u i .tails y p
    = let
-        φ = i1
-        q = (transp (\ i → C .snd x (hfill (\ { i (φ = i1) → u 1=1 .snd .head≈ i}) (inc (a .head)) (~ i)) y) i0 p)
-      in contr-T-φ-fst y (a .tails y q) ((\ { (φ = i1) → (u 1=1 .fst .tails y p)
-                      , (u 1=1 .snd .tails≈ y q p \ j → transp (\ i → C .snd x (u 1=1 .snd .head≈ (~ i ∨ j)) y) j p) })) i
+        q = (transp (\ i → C .snd x (hfill (\ i o → u o .snd .head≈ i) (inc (a .head)) (~ i)) y) i0 p)
+      in contr-T-φ-fst y (a .tails y q)
+                       (\ o → u o .fst .tails y p
+                            , u o .snd .tails≈ y q p \ j → transp (\ i → C .snd x (u 1=1 .snd .head≈ (~ i ∨ j)) y) j p)
+                       i
 
+  -- `contr-T-φ-snd` is productive as the corecursive call appears as
+  -- the main argument of transport, which is guardedness-preserving (even for paths of a coinductive type).
   {-# TERMINATING #-}
   contr-T-φ-snd : ∀ x a → (u : Partial i1 (T {x} a)) → (\ i → a ≈ contr-T-φ-fst x a u i) [ contr-T x a i1 u .snd ≡ u 1=1 .snd ]
   contr-T-φ-snd x a u i .head≈ = u _ .snd .head≈
   contr-T-φ-snd x a u i .tails≈ y pa pb peq = let
     eqh = u 1=1 .snd .head≈
-    r = contr-T-φ-snd y (a .tails y pa) (\ { (i1 = i1) → u 1=1 .fst .tails y pb , u 1=1 .snd .tails≈ y pa pb peq })
+    r = contr-T-φ-snd y (a .tails y pa) (\ o → u o .fst .tails y pb , u 1=1 .snd .tails≈ y pa pb peq)
     F : I → Set _
-    F =            (λ k → a .tails y pa ≈
-            contr-T y
-             (a .tails y
-              (transp (λ j → C .snd x (eqh (k ∧ ~ j)) y) (~ k) (peq k)))
-             i1
-             (λ _ → u _ .fst .tails y pb
-                  , u _ .snd .tails≈ y
-                (transp (λ j → C .snd x (eqh (k ∧ ~ j)) y) (~ k) (peq k))
-                pb
-                (λ j → lemma (C .snd x (u 1=1 .fst .head) y)
-                         (λ h → C .snd x (eqh h) y) pa pb peq k j)
+    F k = a .tails y pa
+        ≈ contr-T-fst y
+            (a .tails y (transp (λ j → C .snd x (eqh (k ∧ ~ j)) y) (~ k) (peq k)))
+            i1
+            (λ _ → u _ .fst .tails y pb
+                 , u _ .snd .tails≈ y
+                       (transp (λ j → C .snd x (eqh (k ∧ ~ j)) y) (~ k) (peq k))
+                       pb
+                       (λ j → lemma (C .snd x (u 1=1 .fst .head) y) (λ h → C .snd x (eqh h) y) pa pb peq k j)
              )
-            .fst)
-    u0 = (contr-T y (a .tails y pa) i1
-            (λ _ → u _ .fst .tails y pb , u _ .snd .tails≈ y pa pb peq)
-            .snd)
-    foo = transport \ l → PathP
-           (λ z → a .tails y pa ≈
-           contr-T-φ-fst y
-            (a .tails y (transp (λ k → C .snd x (u _ .snd .head≈ (~ k ∧ l)) y) (~ l) (peq l)))
-            (λ _ → u _ .fst .tails y pb , u _ .snd .tails≈ y (transp (λ k → C .snd x (u _ .snd .head≈ (~ k ∧ l)) y) (~ l) (peq l)) pb
-                      \ { j → lemma (C .snd x (u 1=1 .fst .head) y)
-                                                                       (λ h → C .snd x (eqh h) y) pa pb peq l j }) z)
+    u0 = contr-T-snd y (a .tails y pa) i1 (λ o → u o .fst .tails y pb , u o .snd .tails≈ y pa pb peq)
+   in transport
+         (λ l → PathP
+           (λ z → a .tails y pa
+                ≈ contr-T-φ-fst y
+                   (a .tails y (transp (λ k → C .snd x (u 1=1 .snd .head≈ (~ k ∧ l)) y) (~ l) (peq l)))
+                   (λ _ → u _ .fst .tails y pb
+                        , u _ .snd .tails≈ y (transp (λ k → C .snd x (u _ .snd .head≈ (~ k ∧ l)) y) (~ l) (peq l)) pb
+                               \ j → lemma (C .snd x (u 1=1 .fst .head) y) (λ h → C .snd x (eqh h) y) pa pb peq l j)
+                   z)
            (transpFill {A = F i0} i0 (\ i → inc (F i)) u0 l)
-           (u _ .snd .tails≈ y pa pb peq)
-   in foo r i
+           (u _ .snd .tails≈ y pa pb peq))
+         r
+         i
 
   contr-T-φ : ∀ x a → (u : Partial i1 (T {x} a)) → contr-T x a i1 u ≡ u 1=1
   contr-T-φ x a u i .fst = contr-T-φ-fst x a u i
   contr-T-φ x a u i .snd = contr-T-φ-snd x a u i
 
-  module _ {ℓ} {A : Set ℓ} where
-    contr : isContr A → (φ : I) → (u : Partial φ A) → A
-    contr (c , p) φ u = comp (λ _ → A) {φ} (λ i o → p (u o) i) (inc c)
-
-    lemContr : (contr1 : ∀ φ → Partial φ A → A)
-
-→ (contr2 : ∀ u → u ≡ (contr1 i1 λ { _ → u}))
-               → isContr A
-    lemContr contr1 contr2 = x , (λ y → let module M' = Aux y in
-        compPath (contr2 x) (compPath (λ i → M'.v i) (sym (contr2 y))))
-      where x = contr1 i0 empty
-            module Aux (y : A) (i : I) where
-              φ = ~ i ∨ i
-              u : Partial φ A
-              u = λ { (i = i0) → x ; (i = i1) → y }
-              v = contr1 φ u
 
   contr-T' : ∀ {x} a → isContr (T {x} a)
-  contr-T' a = lemContr (contr-T _ a) \ u → sym (contr-T-φ _ a (\ _ → u))
+  contr-T' a = isContrPartial→isContr (contr-T _ a) \ u → sym (contr-T-φ _ a (\ _ → u))
 
-  open import Cubical.Foundations.Equiv.Fiberwise
-  open import Cubical.Foundations.Everything
 
   bisimEquiv : ∀ {x} {a b : M C x} → isEquiv (misib a b)
-  bisimEquiv = ContrToUniv.lemma _≈_ (misib _ _) contr-T'
+  bisimEquiv = isContrToUniv _≈_ (misib _ _) contr-T'
