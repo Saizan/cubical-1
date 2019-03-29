@@ -26,6 +26,8 @@ record isHAEquiv {ℓ ℓ'} {A : Set ℓ} {B : Set ℓ'} (f : A → B) : Set (�
     ret : ∀ b → f (g b) ≡ b
     com : ∀ a → cong f (sec a) ≡ ret (f a)
 
+  cong-ret : ∀ b → cong g (ret b) ≡ sec (g b)
+  cong-ret b = {!cong (cong g) (com (g b))!}
 HAEquiv : ∀ {ℓ ℓ'} (A : Set ℓ) (B : Set ℓ') → Set (ℓ-max ℓ ℓ')
 HAEquiv A B = Σ (A → B) λ f → isHAEquiv f
 
