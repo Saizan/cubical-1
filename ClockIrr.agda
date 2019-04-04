@@ -33,7 +33,9 @@ module _ {ℓ} {A A' : Set ℓ} {ℓ'} {B : A → Set ℓ'} {B' : A' → Set ℓ
                                                                                 (g a' .snd .inv b'))))
 
 
-module _ {ℓ} {A A' : Set ℓ} {ℓ'} {B : A → Set ℓ'} {B' : A' → Set ℓ'} (f : Iso A A') (g : (x : A) → Iso (B x) (B' (f .Iso.fun x))) where
+module _ {ℓ} {A A' : Set ℓ} {ℓ'} {B : A → Set ℓ'} {B' : A' → Set ℓ'}
+         (f : Iso A A')
+         (g : (x : A) → Iso (B x) (B' (f .Iso.fun x))) where
 
 
   EquivΣ : Iso (Σ A B) (Σ A' B')
@@ -55,21 +57,23 @@ postulate
   A : Set
   B : A → Set
   A-irr : ClockIrr A
-  B-irr : ∀ a → ClockIrr (B a)
+  B-irr : (a : A) → ClockIrr (B a)
 
 _isRightInvOf_ = retract
 
 -- Here's how we extract ClockIrr from an iso/equiv:
 -- composing the right inverse proof with itself.
-retractToClockIrr : ∀ {A : Set} {g} → g isRightInvOf constClk → ClockIrr A
-retractToClockIrr f t k1 k2 = sym (cong (\ q → q k1) (f t)) ∙ cong (\ q → q k2) (f t)
+retractToClockIrr : ∀ {A : Set} {g} → g isRightInvOf (constClk {A}) → ClockIrr A
+retractToClockIrr {A} {g} f t k1 k2 =
+  sym (cong (\ q → q k1) (f t)) ∙ cong (\ q → q k2) (f t)
+
 
 
 -- The theorem for Σ types.
 module Equivs (k : Clk) where
 
   ClockIrrToIso : ∀ {X : Set} → ClockIrr X → Iso X (Clk → X)
-  ClockIrrToIso cirr = iso (\ a _ → a) (\ t → t k) (\ t i k' → cirr t k k' i ) \ _ → refl
+  ClockIrrToIso cirr = iso (\ a _ → a) (\ t → t k) (\ t i k' → cirr t k k' i) \ _ → refl
 
   Aeqv : Iso A (Clk → A)
   Aeqv = ClockIrrToIso A-irr
@@ -77,12 +81,20 @@ module Equivs (k : Clk) where
   Beqv : (x : A) → Iso (B x) (Clk → B x)
   Beqv x = ClockIrrToIso (B-irr x)
 
+  theEqv : Iso (Σ A B) (Σ (Clk → A) \ a → ∀ k → B (a k))
   theEqv = EquivΣ {B = B} {B' = \ t → ∀ k → B (t k)} Aeqv Beqv
 
   rInv : (Clk → Σ A B) → Σ A B
-  rInv = (λ p → fst (p k) , transport (λ i → B (A-irr (λ x → fst (p x)) k k (~ i))) (snd (p k)))
+  rInv p = fst (p k) , transport eq (snd (p k))
+     where
+       a : A
+       a = fst (p k)
+       tA : Clk → A
+       tA k' = fst (p k')
+       eq : B (tA k) ≡ B (tA k)
+       eq = (λ i → B (A-irr (λ k' → fst (p k')) k k (~ i)))
 
-  rInv-prf : rInv isRightInvOf constClk
+  rInv-prf : rInv isRightInvOf (constClk {Σ A B})
   rInv-prf b = let r = Iso.rightInv theEqv (fst ∘ b , snd ∘ b) in funExt (\ k → ΣPathP ((\ i → cong fst r i k) , (\ i → cong snd r i k)))
 
   -- readable normal form of the proof above.
