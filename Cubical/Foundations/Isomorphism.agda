@@ -11,6 +11,7 @@ Theory about isomorphisms
 module Cubical.Foundations.Isomorphism where
 
 open import Cubical.Core.Everything
+open import Cubical.Foundations.Function
 
 -- Section and retract
 module _ {ℓ ℓ'} {A : Set ℓ} {B : Set ℓ'} where
@@ -82,3 +83,16 @@ module _ {ℓ ℓ'} {A : Set ℓ} {B : Set ℓ'} (i : Iso A B) where
 
 isoToPath : ∀ {ℓ} {A B : Set ℓ} → (Iso A B) → A ≡ B
 isoToPath f = ua (Iso.fun f , isoToIsEquiv f)
+
+
+swapIso : ∀ {l l'} {A : Set l} {B : Set l'} → Iso A B → Iso B A
+Iso.fun (swapIso f) = Iso.inv f
+Iso.inv (swapIso f) = Iso.fun f
+Iso.rightInv (swapIso f) = Iso.leftInv f
+Iso.leftInv (swapIso f) = Iso.rightInv f
+
+compIso : ∀ {A B C : Set} → Iso A B → Iso B C → Iso A C
+Iso.fun (compIso f g) = Iso.fun g ∘ Iso.fun f
+Iso.inv (compIso f g) = Iso.inv f ∘ Iso.inv g
+Iso.rightInv (compIso f g) x = cong (Iso.fun g) (Iso.rightInv f (Iso.inv g x)) ∙ Iso.rightInv g x
+Iso.leftInv (compIso f g)  y = cong (Iso.inv f) (Iso.leftInv g _) ∙ Iso.leftInv f y
