@@ -26,8 +26,21 @@ record isHAEquiv {ℓ ℓ'} {A : Set ℓ} {B : Set ℓ'} (f : A → B) : Set (�
     ret : ∀ b → f (g b) ≡ b
     com : ∀ a → cong f (sec a) ≡ ret (f a)
 
-  cong-ret : ∀ b → cong g (ret b) ≡ sec (g b)
-  cong-ret b = {!cong (cong g) (com (g b))!}
+  com-ret : ∀ b → cong g (ret b) ≡ sec (g b)
+  com-ret b i j = outS (hcomp-unique {φ = j ∨ ~ j}
+             (\ { k (j = i0) → g (f (g (ret b k)))  ; k (j = i1) →  g (ret b k) })
+             (inS (sec (g (f (g b))) j)) (\ k → inS (sq2 k j))
+                  \ k → inS (sec (g (ret b k)) j)) i
+      where
+        SQ : {x y z w : A} → (p : x ≡ y) (q : w ≡ z) (s : x ≡ w) (r : y ≡ z)  → Set _
+        SQ p q s r = PathP (\ i → PathP (\ j → A) (s i) (r i)) p q
+        sq : ∀ b → SQ (\ j → g (ret (f (g b)) j)) (\ j → g (ret b j))
+                      (\ k → g (f (g (ret b k)))) (\ k → g (ret b k))
+        sq b = \ k j → g (ret (ret b k) j)
+        sq2 = transport (\ i → SQ ((sym (cong (cong g) (com (g b))) ∙ sym (Hfa≡fHa (\ x → g (f x)) sec (g b) )) i)
+                        (\ j → g (ret b j)) (\ k → g (f (g (ret b k)))) (\ k → g (ret b k))) (sq b)
+
+
 HAEquiv : ∀ {ℓ ℓ'} (A : Set ℓ) (B : Set ℓ') → Set (ℓ-max ℓ ℓ')
 HAEquiv A B = Σ (A → B) λ f → isHAEquiv f
 
